@@ -52,14 +52,19 @@ export default function Login() {
             // Profile doesn't exist, create it
             const { error: insertError } = await supabase.from("profiles").insert({
               id: data.user.id,
-              email: data.user.email,
               onboarding_completed: false,
+              preferences: {},
               created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
             })
 
             if (insertError) {
               console.error("Error creating profile:", insertError)
+            } else {
+              console.log("Profile created successfully")
             }
+          } else if (profile) {
+            console.log("Profile exists:", profile)
           }
         } catch (profileError) {
           console.error("Profile check error:", profileError)

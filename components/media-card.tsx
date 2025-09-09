@@ -6,174 +6,162 @@ import { useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Check, Star } from "lucide-react"
-import Link from "next/link"
+import { Heart, Star, Calendar, Plus, Check } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { toast } from "@/hooks/use-toast"
+import Link from "next/link"
 
 interface MediaCardProps {
   id: number
   title: string
+  overview: string
   posterPath: string | null
-  releaseDate?: string
+  voteAverage: number
+  releaseDate: string
   mediaType: "movie" | "tv"
-  rating?: number
-  isWatchlist?: boolean
-  onWatchlistChange?: () => void
-  showWatchlistButton?: boolean
+  isInWatchlist?: boolean
 }
 
 export function MediaCard({
   id,
   title,
+  overview,
   posterPath,
+  voteAverage,
   releaseDate,
   mediaType,
-  rating,
-  isWatchlist = false,
-  onWatchlistChange,
-  showWatchlistButton = true,
+  isInWatchlist = false,
 }: MediaCardProps) {
-  const [isInWatchlist, setIsInWatchlist] = useState(isWatchlist)
-  const [isLoading, setIsLoading] = useState(false)
+  const [inWatchlist, setInWatchlist] = useState(isInWatchlist)
+  const [loading, setLoading] = useState(false)
 
-  const handleWatchlistToggle = async (e: React.MouseEvent) => {
+  const toggleWatchlist = async (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
 
+    setLoading(true)
     try {
-      setIsLoading(true)
-      const { data: userData } = await supabase.auth.getUser()
-
-      if (!userData.user) {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) {
         toast({
-          title: "Authentication required",
-          description: "Please log in to manage your watchlist.",
+          title: "Error",
+          description: "You must be logged in to add items to your watchlist",
           variant: "destructive",
         })
         return
       }
 
-      if (isInWatchlist) {
+      if (inWatchlist) {
         // Remove from watchlist
-        const { error } = await supabase.from("watchlist").delete().eq("user_id", userData.user.id).eq("tmdb_id", id)
+        const { error } = await supabase
+          .from("watchlist")
+          .delete()
+          .eq("user_id", user.id)
+          .eq("tmdb_id", id)
+          .eq("media_type", mediaType)
 
         if (error) throw error
 
-        setIsInWatchlist(false)
+        setInWatchlist(false)
         toast({
           title: "Removed from watchlist",
-          description: `${title} has been removed from your watchlist.`,
+          description: `${title} has been removed from your watchlist`,
         })
       } else {
         // Add to watchlist
         const { error } = await supabase.from("watchlist").insert({
-          user_id: userData.user.id,
+          user_id: user.id,
           tmdb_id: id,
           title,
+          overview,
           poster_path: posterPath,
-          media_type: mediaType,
+          vote_average: voteAverage,
           release_date: releaseDate,
-          added_at: new Date().toISOString(),
+          media_type: mediaType,
         })
 
         if (error) throw error
 
-        setIsInWatchlist(true)
+        setInWatchlist(true)
         toast({
           title: "Added to watchlist",
-          description: `${title} has been added to your watchlist.`,
+          description: `${title} has been added to your watchlist`,
         })
       }
-
-      // Call the callback to refresh parent component
-      if (onWatchlistChange) {
-        onWatchlistChange()
-      }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error toggling watchlist:", error)
       toast({
         title: "Error",
-        description: "Failed to update watchlist. Please try again.",
+        description: error.message || "Failed to update watchlist",
         variant: "destructive",
       })
     } finally {
-      setIsLoading(false)
+      setLoading(false)
     }
   }
 
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return ""
-    try {
-      return new Date(dateString).getFullYear().toString()
-    } catch {
-      return ""
-    }
+  const formatDate = (dateString: string) => {
+    if (!dateString) return "TBA"
+    return new Date(dateString).getFullYear().toString()
   }
 
-  const posterUrl = posterPath
-    ? `https://image.tmdb.org/t/p/w500${posterPath}`
-    : `/placeholder.svg?height=750&width=500&text=${encodeURIComponent(title)}`
+  const formatRating = (rating: number) => {
+    return (rating / 2).toFixed(1)
+  }
+
+  const detailsPath = mediaType === "movie" ? `/dashboard/movies/${id}` : `/dashboard/tv-shows/${id}`
 
   return (
-    <Link href={`/dashboard/${mediaType === "movie" ? "movies" : "tv-shows"}/${id}`}>
-      <Card className="group overflow-hidden transition-all duration-200 hover:scale-105 hover:shadow-lg">
-        <div className="relative">
-          <div className="aspect-[2/3] overflow-hidden">
-            <img
-              src={posterUrl || "/placeholder.svg"}
-              alt={title}
-              className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-110"
-              loading="lazy"
-              onError={(e) => {
-                const target = e.target as HTMLImageElement
-                target.src = `/placeholder.svg?height=750&width=500&text=${encodeURIComponent(title)}`
-              }}
-            />
+    <Link href={detailsPath}>
+      <Card className="group cursor-pointer transition-all duration-200 hover:shadow-lg hover:scale-105">
+        <div className="relative overflow-hidden rounded-t-lg">
+          <img
+            src={posterPath ? `https://image.tmdb.org/t/p/w500${posterPath}` : "/placeholder.svg?height=300&width=200"}
+            alt={title}
+            className="w-full h-[300px] object-cover transition-transform duration-200 group-hover:scale-110"
+          />
+          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center">
+            <Button variant="secondary" size="sm" onClick={toggleWatchlist} disabled={loading} className="mr-2">
+              {loading ? (
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current" />
+              ) : inWatchlist ? (
+                <>
+                  <Check className="w-4 h-4 mr-1" />
+                  In Watchlist
+                </>
+              ) : (
+                <>
+                  <Plus className="w-4 h-4 mr-1" />
+                  Add to Watchlist
+                </>
+              )}
+            </Button>
           </div>
-
-          {/* Watchlist button overlay */}
-          {showWatchlistButton && (
-            <div className="absolute top-2 right-2 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-              <Button
-                size="sm"
-                variant={isInWatchlist ? "default" : "secondary"}
-                className="h-8 w-8 rounded-full p-0"
-                onClick={handleWatchlistToggle}
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                ) : isInWatchlist ? (
-                  <Check className="h-4 w-4" />
-                ) : (
-                  <Plus className="h-4 w-4" />
-                )}
-              </Button>
-            </div>
-          )}
-
-          {/* Rating badge */}
-          {rating && rating > 0 && (
-            <div className="absolute top-2 left-2">
-              <Badge variant="secondary" className="flex items-center gap-1 text-xs">
-                <Star className="h-3 w-3 fill-current" />
-                {rating.toFixed(1)}
-              </Badge>
-            </div>
-          )}
-
-          {/* Media type badge */}
-          <div className="absolute bottom-2 left-2">
-            <Badge variant="outline" className="text-xs">
-              {mediaType === "movie" ? "Movie" : "TV Show"}
+          <Badge variant="secondary" className="absolute top-2 left-2 bg-black/70 text-white">
+            {mediaType === "movie" ? "Movie" : "TV Show"}
+          </Badge>
+          {inWatchlist && (
+            <Badge variant="default" className="absolute top-2 right-2 bg-green-600 text-white">
+              <Heart className="w-3 h-3 mr-1 fill-current" />
+              Watchlist
             </Badge>
-          </div>
+          )}
         </div>
-
-        <CardContent className="p-3">
-          <h3 className="font-semibold text-sm leading-tight line-clamp-2 mb-1">{title}</h3>
-          {releaseDate && <p className="text-xs text-muted-foreground">{formatDate(releaseDate)}</p>}
+        <CardContent className="p-4">
+          <h3 className="font-semibold text-sm mb-2 line-clamp-2 min-h-[2.5rem]">{title}</h3>
+          <div className="flex items-center justify-between text-xs text-muted-foreground mb-2">
+            <div className="flex items-center">
+              <Calendar className="w-3 h-3 mr-1" />
+              {formatDate(releaseDate)}
+            </div>
+            <div className="flex items-center">
+              <Star className="w-3 h-3 mr-1 fill-yellow-400 text-yellow-400" />
+              {formatRating(voteAverage)}
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground line-clamp-3">{overview || "No description available."}</p>
         </CardContent>
       </Card>
     </Link>
