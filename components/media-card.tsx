@@ -1,13 +1,14 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { supabase } from "@/lib/supabase"
-import { toast } from "@/hooks/use-toast"
 import { Button } from "@/components/ui/button"
-import { PlusCircle, MinusCircle, CheckCircle, Eye, Trash2 } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Card, CardContent } from "@/components/ui/card"
+import { Plus, Check, Star } from "lucide-react"
+import { cn } from "@/lib/utils"
 
 interface MediaCardProps {
   id: number
@@ -15,8 +16,10 @@ interface MediaCardProps {
   posterPath: string | null
   releaseDate?: string
   mediaType: "movie" | "tv"
+  rating?: number
   isWatchlist?: boolean
   onWatchlistChange?: () => void
+  className?: string
 }
 
 export function MediaCard({
@@ -25,17 +28,13 @@ export function MediaCard({
   posterPath,
   releaseDate,
   mediaType,
+  rating,
   isWatchlist = false,
   onWatchlistChange,
+  className,
 }: MediaCardProps) {
-  const [isHovered, setIsHovered] = useState(false)
-  const [isAddingToWatchlist, setIsAddingToWatchlist] = useState(false)
-  const [isRemovingFromWatchlist, setIsRemovingFromWatchlist] = useState(false)
-  const [isMarkingAsWatched, setIsMarkingAsWatched] = useState(false)
-  const [lastRemovedItem, setLastRemovedItem] = useState<any>(null)
-  const [showUndo, setShowUndo] = useState(false)
-  const [inWatchlist, setInWatchlist] = useState(isWatchlist)
   const [isInWatchlist, setIsInWatchlist] = useState(isWatchlist)
+  const [isLoading, setIsLoading] = useState(false)
   const [imageError, setImageError] = useState(false)
 
   // Check if the item is in the watchlist when the component mounts
@@ -50,15 +49,15 @@ export function MediaCard({
     let isMounted = true
     const checkWatchlistStatus = async () => {
       try {
-        const { data: userData } = await supabase.auth.getUser()
-        if (!userData.user || !isMounted) return
+        const { data: session } = await supabase.auth.getSession()
+        if (!session?.user || !isMounted) return
 
         const { data } = await supabase
           .from("watchlist")
           .select("*")
-          .eq("user_id", userData.user.id)
+          .eq("user_id", session.user.id)
           .eq("tmdb_id", id)
-          .eq("type", mediaType)
+          .eq("media_type", mediaType)
           .single()
 
         if (isMounted) {
@@ -79,352 +78,112 @@ export function MediaCard({
     }
   }, [id, mediaType, isWatchlist])
 
-  // Function to ensure the watchlist table exists
-  const ensureWatchlistTable = async () => {
-    try {
-      // We'll just check if the table exists by trying to count records
-      const { error } = await supabase.from("watchlist").select("id", { count: "exact", head: true })
-
-      if (error && error.code === "42P01") {
-        // Table doesn't exist error code
-        // Try to create it via our API
-        await fetch("/api/create-watchlist-table")
-      }
-    } catch (error) {
-      console.error("Error checking watchlist table:", error)
-    }
-  }
-
-  const addToWatchlist = async (e: React.MouseEvent) => {
+  const handleWatchlistToggle = async (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
 
-    try {
-      setIsAddingToWatchlist(true)
+    setIsLoading(true)
 
-      const { data: userData } = await supabase.auth.getUser()
-      if (!userData.user) {
-        toast({
-          title: "Not logged in",
-          description: "Please log in to add items to your watchlist",
-          variant: "destructive",
-        })
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+
+      if (!session?.user) {
+        console.error("User not authenticated")
         return
       }
 
-      // Ensure watchlist table exists
-      await ensureWatchlistTable()
+      if (isInWatchlist) {
+        // Remove from watchlist
+        const { error } = await supabase.from("watchlist").delete().eq("user_id", session.user.id).eq("tmdb_id", id)
 
-      const { error, data } = await supabase
-        .from("watchlist")
-        .insert({
-          user_id: userData.user.id,
+        if (error) throw error
+        setIsInWatchlist(false)
+      } else {
+        // Add to watchlist
+        const { error } = await supabase.from("watchlist").insert({
+          user_id: session.user.id,
           tmdb_id: id,
-          type: mediaType,
           title,
           poster_path: posterPath,
+          media_type: mediaType,
+          release_date: releaseDate,
         })
-        .select()
 
-      if (error) throw error
-
-      toast({
-        title: "Added to watchlist",
-        description: `${title} has been added to your watchlist`,
-      })
-
-      setInWatchlist(true)
-      setIsInWatchlist(true)
-
-      if (onWatchlistChange) {
-        onWatchlistChange()
+        if (error) throw error
+        setIsInWatchlist(true)
       }
+
+      onWatchlistChange?.()
     } catch (error) {
-      console.error("Error adding to watchlist:", error)
-      toast({
-        title: "Error",
-        description: "Failed to add to watchlist. Please try again.",
-        variant: "destructive",
-      })
+      console.error("Error updating watchlist:", error)
     } finally {
-      setIsAddingToWatchlist(false)
+      setIsLoading(false)
     }
   }
 
-  const removeFromWatchlist = async (e: React.MouseEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-
-    try {
-      setIsRemovingFromWatchlist(true)
-
-      const { data: userData } = await supabase.auth.getUser()
-      if (!userData.user) {
-        toast({
-          title: "Not logged in",
-          description: "Please log in to manage your watchlist",
-          variant: "destructive",
-        })
-        return
-      }
-
-      // First get the item data for potential undo
-      const { data: itemData } = await supabase
-        .from("watchlist")
-        .select("*")
-        .eq("user_id", userData.user.id)
-        .eq("tmdb_id", id)
-        .eq("type", mediaType)
-        .single()
-
-      if (itemData) {
-        setLastRemovedItem(itemData)
-      }
-
-      // Remove from watchlist
-      const { error } = await supabase
-        .from("watchlist")
-        .delete()
-        .eq("user_id", userData.user.id)
-        .eq("tmdb_id", id)
-        .eq("type", mediaType)
-
-      if (error) throw error
-
-      toast({
-        title: "Removed from watchlist",
-        description: `${title} has been removed from your watchlist`,
-      })
-
-      setInWatchlist(false)
-      setIsInWatchlist(false)
-      setShowUndo(true)
-      setTimeout(() => setShowUndo(false), 5000)
-
-      if (onWatchlistChange) {
-        onWatchlistChange()
-      }
-    } catch (error) {
-      console.error("Error removing from watchlist:", error)
-      toast({
-        title: "Error",
-        description: "Failed to remove from watchlist. Please try again.",
-        variant: "destructive",
-      })
-    } finally {
-      setIsRemovingFromWatchlist(false)
-    }
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return ""
+    return new Date(dateString).getFullYear().toString()
   }
 
-  const markAsWatched = async (e: React.MouseEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-
-    try {
-      setIsMarkingAsWatched(true)
-
-      const { data: userData } = await supabase.auth.getUser()
-      if (!userData.user) {
-        toast({
-          title: "Not logged in",
-          description: "Please log in to mark items as watched",
-          variant: "destructive",
-        })
-        return
-      }
-
-      // First, add to watched content
-      const { error: watchedError } = await supabase.from("watched_content").insert({
-        user_id: userData.user.id,
-        tmdb_id: id,
-        type: mediaType,
-        title,
-        poster_path: posterPath,
-      })
-
-      if (watchedError) throw watchedError
-
-      // Then, if it's in watchlist, remove it
-      if (inWatchlist) {
-        // First get the item data for potential undo
-        const { data: itemData } = await supabase
-          .from("watchlist")
-          .select("*")
-          .eq("user_id", userData.user.id)
-          .eq("tmdb_id", id)
-          .eq("type", mediaType)
-          .single()
-
-        if (itemData) {
-          setLastRemovedItem(itemData)
-        }
-
-        const { error: removeError } = await supabase
-          .from("watchlist")
-          .delete()
-          .eq("user_id", userData.user.id)
-          .eq("tmdb_id", id)
-          .eq("type", mediaType)
-
-        if (removeError) throw removeError
-
-        setInWatchlist(false)
-        setIsInWatchlist(false)
-        setShowUndo(true)
-        setTimeout(() => setShowUndo(false), 5000)
-      }
-
-      toast({
-        title: "Marked as watched",
-        description: `${title} has been marked as watched`,
-      })
-
-      if (onWatchlistChange) {
-        onWatchlistChange()
-      }
-    } catch (error) {
-      console.error("Error marking as watched:", error)
-      toast({
-        title: "Error",
-        description: "Failed to mark as watched. Please try again.",
-        variant: "destructive",
-      })
-    } finally {
-      setIsMarkingAsWatched(false)
-    }
-  }
-
-  const undoRemove = async () => {
-    if (!lastRemovedItem) return
-
-    try {
-      const { data: userData } = await supabase.auth.getUser()
-      if (!userData.user) return
-
-      // Remove the id to avoid conflicts
-      const { id: itemId, ...itemData } = lastRemovedItem
-
-      // Add back to watchlist
-      const { error } = await supabase.from("watchlist").insert(itemData)
-
-      if (error) throw error
-
-      toast({
-        title: "Item restored",
-        description: `${title} has been added back to your watchlist`,
-      })
-
-      setInWatchlist(true)
-      setIsInWatchlist(true)
-      setShowUndo(false)
-
-      if (onWatchlistChange) {
-        onWatchlistChange()
-      }
-    } catch (error) {
-      console.error("Error restoring watchlist item:", error)
-      toast({
-        title: "Error",
-        description: "Failed to restore item. Please try again.",
-        variant: "destructive",
-      })
-    }
-  }
-
-  const handleImageError = () => {
-    setImageError(true)
-  }
+  const posterUrl = posterPath
+    ? `https://image.tmdb.org/t/p/w500${posterPath}`
+    : `/placeholder.svg?height=750&width=500&text=${encodeURIComponent(title)}`
 
   return (
-    <>
+    <Card className={cn("group overflow-hidden transition-all hover:shadow-lg", className)}>
       <Link href={`/dashboard/${mediaType === "movie" ? "movies" : "tv-shows"}/${id}`}>
-        <div
-          className="overflow-hidden rounded-lg border bg-card transition-all hover:shadow-lg hover:bg-accent/20 group relative hover:scale-[1.03] hover:border-primary/50"
-          onMouseEnter={() => setIsHovered(true)}
-          onMouseLeave={() => setIsHovered(false)}
-        >
-          {releaseDate && new Date(releaseDate) > new Date() && (
-            <div className="absolute top-2 left-2 bg-primary/80 text-primary-foreground text-xs px-2 py-1 rounded-md z-10">
-              {new Date(releaseDate).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
-            </div>
-          )}
-          <div className="aspect-[2/3] relative">
-            <img
-              src={
-                posterPath && !imageError
-                  ? `https://image.tmdb.org/t/p/w500${posterPath}`
-                  : `/placeholder.svg?height=450&width=300`
-              }
-              alt={title || "Media poster"}
-              className="object-cover w-full h-full transition-transform group-hover:brightness-[0.85]"
-              loading="lazy"
-              onError={handleImageError}
-            />
-
-            {isHovered && (
-              <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center gap-2 p-2 transition-opacity duration-200 animate-in fade-in">
-                {!isInWatchlist ? (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="w-full text-white hover:text-white hover:bg-primary/20"
-                    onClick={addToWatchlist}
-                    disabled={isAddingToWatchlist}
-                  >
-                    <PlusCircle className="mr-2 h-4 w-4" />
-                    {isAddingToWatchlist ? "Adding..." : "Add to Watchlist"}
-                  </Button>
-                ) : (
-                  <>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="w-full text-white hover:text-white hover:bg-primary/20"
-                      onClick={removeFromWatchlist}
-                      disabled={isRemovingFromWatchlist}
-                    >
-                      <MinusCircle className="mr-2 h-4 w-4" />
-                      {isRemovingFromWatchlist ? "Removing..." : "Remove from Watchlist"}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="w-full text-white hover:text-white hover:bg-primary/20"
-                      onClick={markAsWatched}
-                      disabled={isMarkingAsWatched}
-                    >
-                      <Eye className="mr-2 h-4 w-4" />
-                      {isMarkingAsWatched ? "Marking..." : "Mark as Watched"}
-                    </Button>
-                  </>
-                )}
-              </div>
+        <div className="relative aspect-[2/3] overflow-hidden">
+          <img
+            src={posterUrl || "/placeholder.svg"}
+            alt={title}
+            className="h-full w-full object-cover transition-transform group-hover:scale-105"
+            loading="lazy"
+            onError={(e) => {
+              const target = e.target as HTMLImageElement
+              target.src = `/placeholder.svg?height=750&width=500&text=${encodeURIComponent(title)}`
+            }}
+          />
+          <div className="absolute inset-0 bg-black/60 opacity-0 transition-opacity group-hover:opacity-100" />
+          <div className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity group-hover:opacity-100">
+            <Button size="sm" variant="secondary">
+              View Details
+            </Button>
+          </div>
+          <Button
+            size="icon"
+            variant={isInWatchlist ? "default" : "secondary"}
+            className="absolute right-2 top-2 h-8 w-8 opacity-0 transition-opacity group-hover:opacity-100"
+            onClick={handleWatchlistToggle}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+            ) : isInWatchlist ? (
+              <Check className="h-4 w-4" />
+            ) : (
+              <Plus className="h-4 w-4" />
             )}
-          </div>
-          <div className="p-2">
-            <h3 className="font-medium truncate">{title}</h3>
-            <p className="text-xs text-muted-foreground">
-              {releaseDate ? new Date(releaseDate).getFullYear() : "Unknown"}
-            </p>
-          </div>
-
-          {isInWatchlist && (
-            <div className="absolute top-2 right-2">
-              <CheckCircle className="h-5 w-5 text-primary" />
+          </Button>
+          {rating && (
+            <div className="absolute bottom-2 left-2 flex items-center gap-1 rounded bg-black/80 px-2 py-1 text-xs text-white">
+              <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+              {rating.toFixed(1)}
             </div>
           )}
         </div>
       </Link>
-
-      {showUndo && (
-        <div className="fixed bottom-4 left-4 z-50 flex items-center gap-2 rounded-lg bg-card p-4 shadow-lg border animate-in slide-in-from-bottom-10">
-          <Trash2 className="h-5 w-5 text-primary" />
-          <span>Removed from watchlist.</span>
-          <Button variant="outline" size="sm" onClick={undoRemove}>
-            Undo
-          </Button>
+      <CardContent className="p-3">
+        <h3 className="line-clamp-2 text-sm font-medium leading-tight">{title}</h3>
+        <div className="mt-1 flex items-center justify-between">
+          <span className="text-xs text-muted-foreground">{formatDate(releaseDate)}</span>
+          <Badge variant="outline" className="text-xs">
+            {mediaType === "movie" ? "Movie" : "TV"}
+          </Badge>
         </div>
-      )}
-    </>
+      </CardContent>
+    </Card>
   )
 }
