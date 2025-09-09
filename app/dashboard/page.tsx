@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useContext } from "react"
+import { useEffect, useState, useCallback, useContext } from "react"
 import { supabase } from "@/lib/supabase"
 import { getTrending, getUpcoming } from "@/lib/tmdb"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
