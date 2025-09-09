@@ -5,17 +5,15 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
-    persistSession: true,
     autoRefreshToken: true,
+    persistSession: true,
     detectSessionInUrl: true,
-    storage: typeof window !== "undefined" ? window.localStorage : undefined,
   },
 })
 
-// Admin client for server-side operations
-export const createAdminClient = () => {
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-  return createClient(supabaseUrl, supabaseServiceKey, {
+// Server-side client for admin operations
+export const createServerClient = () => {
+  return createClient(supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,

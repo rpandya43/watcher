@@ -7,8 +7,6 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Progress } from "@/components/ui/progress"
 import { CheckCircle, Moon, Sun, Bell, BellOff, Film, Tv, Star } from "lucide-react"
 
 export function OnboardingWizard() {
@@ -19,10 +17,6 @@ export function OnboardingWizard() {
   const [theme, setTheme] = useState(userPreferences.theme || "system")
   const [emailNotifications, setEmailNotifications] = useState(userPreferences.emailNotifications ?? true)
   const [browserNotifications, setBrowserNotifications] = useState(userPreferences.browserNotifications ?? false)
-
-  const steps = ["welcome", "theme", "name", "notifications", "features", "complete"]
-  const currentStepIndex = steps.indexOf(currentStep)
-  const progress = ((currentStepIndex + 1) / steps.length) * 100
 
   const handleNext = () => {
     // Save current step data
@@ -78,31 +72,34 @@ export function OnboardingWizard() {
               <CardDescription>Select how you'd like the app to look</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <RadioGroup value={theme} onValueChange={setTheme} className="space-y-3">
-                <div className="flex items-center space-x-3 rounded-lg border p-3">
-                  <RadioGroupItem value="light" id="light" />
+              <div className="space-y-3">
+                <Button
+                  variant={theme === "light" ? "default" : "outline"}
+                  onClick={() => setTheme("light")}
+                  className="w-full justify-start gap-3 h-12"
+                >
                   <Sun className="h-5 w-5" />
-                  <Label htmlFor="light" className="flex-1">
-                    Light Mode
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-3 rounded-lg border p-3">
-                  <RadioGroupItem value="dark" id="dark" />
+                  Light Mode
+                </Button>
+                <Button
+                  variant={theme === "dark" ? "default" : "outline"}
+                  onClick={() => setTheme("dark")}
+                  className="w-full justify-start gap-3 h-12"
+                >
                   <Moon className="h-5 w-5" />
-                  <Label htmlFor="dark" className="flex-1">
-                    Dark Mode
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-3 rounded-lg border p-3">
-                  <RadioGroupItem value="system" id="system" />
+                  Dark Mode
+                </Button>
+                <Button
+                  variant={theme === "system" ? "default" : "outline"}
+                  onClick={() => setTheme("system")}
+                  className="w-full justify-start gap-3 h-12"
+                >
                   <div className="flex h-5 w-5 items-center justify-center">
                     <div className="h-3 w-3 rounded-full bg-gradient-to-r from-yellow-400 to-blue-600" />
                   </div>
-                  <Label htmlFor="system" className="flex-1">
-                    System Default
-                  </Label>
-                </div>
-              </RadioGroup>
+                  System Default
+                </Button>
+              </div>
               <div className="flex gap-2">
                 <Button onClick={prevStep} variant="outline" className="flex-1 bg-transparent">
                   Back
@@ -247,15 +244,7 @@ export function OnboardingWizard() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <div className="w-full max-w-md">
-        <div className="mb-8">
-          <Progress value={progress} className="h-2" />
-          <p className="text-center text-sm text-muted-foreground mt-2">
-            Step {currentStepIndex + 1} of {steps.length}
-          </p>
-        </div>
-        {renderStep()}
-      </div>
+      <div className="w-full max-w-md">{renderStep()}</div>
     </div>
   )
 }

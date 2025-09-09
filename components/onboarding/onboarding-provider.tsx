@@ -1,183 +1,139 @@
 "use client"
 
-import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
+import type React from "react"
+import { createContext, useContext, useState, useEffect } from "react"
 import { supabase } from "@/lib/supabase"
-import { useTheme } from "next-themes"
 
 type OnboardingStep = "welcome" | "theme" | "name" | "notifications" | "features" | "complete"
+
+interface UserPreferences {
+  theme?: string
+  name?: string
+  emailNotifications?: boolean
+  browserNotifications?: boolean
+}
 
 interface OnboardingContextType {
   isOnboarding: boolean
   currentStep: OnboardingStep
+  userPreferences: UserPreferences
   nextStep: () => void
   prevStep: () => void
   skipOnboarding: () => void
   completeOnboarding: () => void
   setUserPreference: (key: string, value: any) => void
-  userPreferences: Record<string, any>
 }
 
-export const OnboardingContext = createContext<OnboardingContextType | undefined>(undefined)
+export const OnboardingContext = createContext<OnboardingContextType | null>(null)
 
 export function useOnboarding() {
   const context = useContext(OnboardingContext)
-  if (context === undefined) {
+  if (!context) {
     throw new Error("useOnboarding must be used within an OnboardingProvider")
   }
   return context
 }
 
-interface OnboardingProviderProps {
-  children: ReactNode
-}
-
-export function OnboardingProvider({ children }: OnboardingProviderProps) {
+export function OnboardingProvider({ children }: { children: React.ReactNode }) {
   const [isOnboarding, setIsOnboarding] = useState(false)
   const [currentStep, setCurrentStep] = useState<OnboardingStep>("welcome")
-  const [userPreferences, setUserPreferences] = useState<Record<string, any>>({})
-  const [isLoading, setIsLoading] = useState(true)
-  const [userId, setUserId] = useState<string | null>(null)
-  const { setTheme } = useTheme()
+  const [userPreferences, setUserPreferences] = useState<UserPreferences>({})
+  const [loading, setLoading] = useState(true)
+
+  const steps: OnboardingStep[] = ["welcome", "theme", "name", "notifications", "features", "complete"]
 
   useEffect(() => {
-    let mounted = true
+    checkOnboardingStatus()
+  }, [])
 
-    const checkOnboardingStatus = async () => {
-      try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession()
+  const checkOnboardingStatus = async () => {
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
 
-        if (!mounted) return
-
-        if (!session?.user) {
-          setIsOnboarding(false)
-          setIsLoading(false)
-          return
-        }
-
-        setUserId(session.user.id)
-
-        // Simple check - just look for onboarding_completed
+      if (session?.user) {
         const { data: profile } = await supabase
           .from("profiles")
-          .select("onboarding_completed, preferences")
+          .select("onboarding_completed")
           .eq("id", session.user.id)
           .single()
 
-        if (!mounted) return
-
-        if (!profile) {
-          // No profile exists, show onboarding
+        if (!profile?.onboarding_completed) {
           setIsOnboarding(true)
-        } else if (profile.onboarding_completed === true) {
-          // Onboarding completed
-          setIsOnboarding(false)
-          if (profile.preferences) {
-            setUserPreferences(profile.preferences)
-            if (profile.preferences.theme) {
-              setTheme(profile.preferences.theme)
-            }
-          }
-        } else {
-          // Show onboarding
-          setIsOnboarding(true)
-          if (profile.preferences) {
-            setUserPreferences(profile.preferences)
-          }
-        }
-      } catch (error) {
-        console.error("Error checking onboarding:", error)
-        if (mounted) {
-          setIsOnboarding(false)
-        }
-      } finally {
-        if (mounted) {
-          setIsLoading(false)
         }
       }
+    } catch (error) {
+      console.error("Error checking onboarding status:", error)
+    } finally {
+      setLoading(false)
     }
-
-    checkOnboardingStatus()
-
-    return () => {
-      mounted = false
-    }
-  }, [setTheme])
+  }
 
   const nextStep = () => {
-    switch (currentStep) {
-      case "welcome":
-        setCurrentStep("theme")
-        break
-      case "theme":
-        setCurrentStep("name")
-        break
-      case "name":
-        setCurrentStep("notifications")
-        break
-      case "notifications":
-        setCurrentStep("features")
-        break
-      case "features":
-        setCurrentStep("complete")
-        break
-      case "complete":
-        completeOnboarding()
-        break
+    const currentIndex = steps.indexOf(currentStep)
+    if (currentIndex < steps.length - 1) {
+      setCurrentStep(steps[currentIndex + 1])
     }
   }
 
   const prevStep = () => {
-    switch (currentStep) {
-      case "theme":
-        setCurrentStep("welcome")
-        break
-      case "name":
-        setCurrentStep("theme")
-        break
-      case "notifications":
-        setCurrentStep("name")
-        break
-      case "features":
-        setCurrentStep("notifications")
-        break
-      case "complete":
-        setCurrentStep("features")
-        break
+    const currentIndex = steps.indexOf(currentStep)
+    if (currentIndex > 0) {
+      setCurrentStep(steps[currentIndex - 1])
     }
   }
 
   const setUserPreference = (key: string, value: any) => {
     setUserPreferences((prev) => ({ ...prev, [key]: value }))
-    if (key === "theme") {
-      setTheme(value)
-    }
   }
 
   const completeOnboarding = async () => {
-    if (!userId) return
-
     try {
-      await supabase.from("profiles").upsert({
-        id: userId,
-        preferences: userPreferences,
-        onboarding_completed: true,
-        updated_at: new Date().toISOString(),
-      })
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
 
-      setIsOnboarding(false)
+      if (session?.user) {
+        // Update profile with onboarding completion and preferences
+        await supabase
+          .from("profiles")
+          .update({
+            onboarding_completed: true,
+            display_name: userPreferences.name,
+            email_notifications: userPreferences.emailNotifications ?? true,
+            browser_notifications: userPreferences.browserNotifications ?? false,
+          })
+          .eq("id", session.user.id)
+
+        setIsOnboarding(false)
+      }
     } catch (error) {
       console.error("Error completing onboarding:", error)
     }
   }
 
   const skipOnboarding = async () => {
-    await completeOnboarding()
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+
+      if (session?.user) {
+        await supabase.from("profiles").update({ onboarding_completed: true }).eq("id", session.user.id)
+        setIsOnboarding(false)
+      }
+    } catch (error) {
+      console.error("Error skipping onboarding:", error)
+    }
   }
 
-  if (isLoading) {
-    return <>{children}</>
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+      </div>
+    )
   }
 
   return (
@@ -185,12 +141,12 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
       value={{
         isOnboarding,
         currentStep,
+        userPreferences,
         nextStep,
         prevStep,
         skipOnboarding,
         completeOnboarding,
         setUserPreference,
-        userPreferences,
       }}
     >
       {children}
