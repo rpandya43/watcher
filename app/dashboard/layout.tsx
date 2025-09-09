@@ -41,28 +41,48 @@ export default function DashboardLayout({
 
     const checkUser = async () => {
       try {
+        console.log("Checking user session...")
+
         const {
           data: { session },
+          error: sessionError,
         } = await supabase.auth.getSession()
 
-        if (!mounted) return
+        if (sessionError) {
+          console.error("Session error:", sessionError)
+          if (mounted) {
+            router.push("/login")
+          }
+          return
+        }
 
-        if (session?.user) {
+        if (!session?.user) {
+          console.log("No session found, redirecting to login")
+          if (mounted) {
+            router.push("/login")
+          }
+          return
+        }
+
+        console.log("User session found:", session.user.id)
+
+        if (mounted) {
           setUser(session.user)
 
           // Check admin status
-          const { data: adminData } = await supabase
-            .from("admin_users")
-            .select("*")
-            .eq("email", session.user.email)
-            .single()
+          try {
+            const { data: adminData } = await supabase
+              .from("admin_users")
+              .select("*")
+              .eq("email", session.user.email)
+              .single()
 
-          if (mounted && adminData) {
-            setIsAdmin(true)
+            if (mounted && adminData) {
+              setIsAdmin(true)
+            }
+          } catch (adminError) {
+            console.log("Not an admin user (this is normal)")
           }
-        } else {
-          router.push("/login")
-          return
         }
       } catch (error) {
         console.error("Error checking user:", error)
@@ -81,13 +101,17 @@ export default function DashboardLayout({
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log("Auth state changed:", event, session?.user?.id)
+
       if (!mounted) return
 
       if (event === "SIGNED_OUT" || !session) {
+        console.log("User signed out, redirecting to home")
         setUser(null)
         setIsAdmin(false)
         router.push("/")
       } else if (event === "SIGNED_IN" && session?.user) {
+        console.log("User signed in:", session.user.id)
         setUser(session.user)
       }
     })
@@ -99,7 +123,11 @@ export default function DashboardLayout({
   }, [router])
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut()
+    console.log("Signing out...")
+    const { error } = await supabase.auth.signOut()
+    if (error) {
+      console.error("Sign out error:", error)
+    }
     router.push("/")
   }
 
@@ -116,7 +144,14 @@ export default function DashboardLayout({
   }
 
   if (!user) {
-    return null
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="text-center">
+          <p className="mb-4">Redirecting to login...</p>
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto"></div>
+        </div>
+      </div>
+    )
   }
 
   return (
