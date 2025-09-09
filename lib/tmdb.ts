@@ -1,157 +1,159 @@
-const TMDB_BASE_URL = "https://api.themoviedb.org/3"
+const TMDB_API_KEY = process.env.TMDB_API_KEY
 
-export interface TMDBMovie {
-  id: number
-  title: string
-  overview: string
-  poster_path: string | null
-  backdrop_path: string | null
-  release_date: string
-  vote_average: number
-  genre_ids: number[]
-  adult: boolean
-  original_language: string
-  original_title: string
-  popularity: number
-  video: boolean
-  vote_count: number
-}
-
-export interface TMDBTVShow {
-  id: number
-  name: string
-  overview: string
-  poster_path: string | null
-  backdrop_path: string | null
-  first_air_date: string
-  vote_average: number
-  genre_ids: number[]
-  adult: boolean
-  origin_country: string[]
-  original_language: string
-  original_name: string
-  popularity: number
-  vote_count: number
-}
-
-export interface TMDBSearchResult {
-  page: number
-  results: (TMDBMovie | TMDBTVShow)[]
-  total_pages: number
-  total_results: number
-}
-
-export interface TMDBGenre {
-  id: number
-  name: string
-}
-
-export interface TMDBGenresResponse {
-  genres: TMDBGenre[]
-}
-
-// Use our API route instead of direct TMDB calls
-export const tmdbApi = {
-  async searchMulti(query: string, page = 1): Promise<TMDBSearchResult> {
-    const response = await fetch(`/api/tmdb?endpoint=search/multi&query=${encodeURIComponent(query)}&page=${page}`)
-    if (!response.ok) {
-      throw new Error(`TMDB API error: ${response.status}`)
-    }
-    return response.json()
-  },
-
-  async getMovieDetails(id: number): Promise<TMDBMovie> {
-    const response = await fetch(`/api/tmdb?endpoint=movie/${id}`)
-    if (!response.ok) {
-      throw new Error(`TMDB API error: ${response.status}`)
-    }
-    return response.json()
-  },
-
-  async getTVShowDetails(id: number): Promise<TMDBTVShow> {
-    const response = await fetch(`/api/tmdb?endpoint=tv/${id}`)
-    if (!response.ok) {
-      throw new Error(`TMDB API error: ${response.status}`)
-    }
-    return response.json()
-  },
-
-  async getTrending(
-    mediaType: "all" | "movie" | "tv" = "all",
-    timeWindow: "day" | "week" = "week",
-  ): Promise<TMDBSearchResult> {
-    const response = await fetch(`/api/tmdb?endpoint=trending/${mediaType}/${timeWindow}`)
-    if (!response.ok) {
-      throw new Error(`TMDB API error: ${response.status}`)
-    }
-    return response.json()
-  },
-
-  async getPopularMovies(page = 1): Promise<TMDBSearchResult> {
-    const response = await fetch(`/api/tmdb?endpoint=movie/popular&page=${page}`)
-    if (!response.ok) {
-      throw new Error(`TMDB API error: ${response.status}`)
-    }
-    return response.json()
-  },
-
-  async getPopularTVShows(page = 1): Promise<TMDBSearchResult> {
-    const response = await fetch(`/api/tmdb?endpoint=tv/popular&page=${page}`)
-    if (!response.ok) {
-      throw new Error(`TMDB API error: ${response.status}`)
-    }
-    return response.json()
-  },
-
-  async getUpcomingMovies(page = 1): Promise<TMDBSearchResult> {
-    const response = await fetch(`/api/tmdb?endpoint=movie/upcoming&page=${page}`)
-    if (!response.ok) {
-      throw new Error(`TMDB API error: ${response.status}`)
-    }
-    return response.json()
-  },
-
-  async getMovieGenres(): Promise<TMDBGenresResponse> {
-    const response = await fetch(`/api/tmdb?endpoint=genre/movie/list`)
-    if (!response.ok) {
-      throw new Error(`TMDB API error: ${response.status}`)
-    }
-    return response.json()
-  },
-
-  async getTVGenres(): Promise<TMDBGenresResponse> {
-    const response = await fetch(`/api/tmdb?endpoint=genre/tv/list`)
-    if (!response.ok) {
-      throw new Error(`TMDB API error: ${response.status}`)
-    }
-    return response.json()
-  },
-
-  async discoverMovies(params: Record<string, string | number> = {}): Promise<TMDBSearchResult> {
-    const searchParams = new URLSearchParams()
-    Object.entries(params).forEach(([key, value]) => {
-      searchParams.append(key, value.toString())
+export async function searchTMDB(query: string, type: "movie" | "tv" = "movie", genre?: string, page = 1) {
+  try {
+    const params = new URLSearchParams({
+      endpoint: "search",
+      type,
+      query: encodeURIComponent(query),
+      page: page.toString(),
     })
 
-    const response = await fetch(`/api/tmdb?endpoint=discover/movie&${searchParams.toString()}`)
+    if (genre) {
+      params.append("genre", genre)
+    }
+
+    const response = await fetch(`/api/tmdb?${params.toString()}`)
     if (!response.ok) {
-      throw new Error(`TMDB API error: ${response.status}`)
+      const errorData = await response.json()
+      console.error("TMDB search error:", errorData)
+      throw new Error(`TMDB search failed: ${errorData.error || response.statusText}`)
     }
     return response.json()
-  },
-
-  async discoverTVShows(params: Record<string, string | number> = {}): Promise<TMDBSearchResult> {
-    const searchParams = new URLSearchParams()
-    Object.entries(params).forEach(([key, value]) => {
-      searchParams.append(key, value.toString())
-    })
-
-    const response = await fetch(`/api/tmdb?endpoint=discover/tv&${searchParams.toString()}`)
-    if (!response.ok) {
-      throw new Error(`TMDB API error: ${response.status}`)
-    }
-    return response.json()
-  },
+  } catch (error) {
+    console.error("Error in searchTMDB:", error)
+    return { results: [] }
+  }
 }
 
-export default tmdbApi
+export async function getTrending(
+  timeWindow: "day" | "week" = "week",
+  mediaType: "all" | "movie" | "tv" = "all",
+  page = 1,
+) {
+  try {
+    const params = new URLSearchParams({
+      endpoint: "trending",
+      type: mediaType,
+      timeWindow,
+      page: page.toString(),
+    })
+
+    const response = await fetch(`/api/tmdb?${params.toString()}`)
+    if (!response.ok) {
+      const errorData = await response.json()
+      console.error("TMDB trending error:", errorData)
+      throw new Error(`TMDB trending failed: ${errorData.error || response.statusText}`)
+    }
+    return response.json()
+  } catch (error) {
+    console.error("Error fetching trending content:", error)
+    return { results: [] }
+  }
+}
+
+export async function getDetails(id: string, type: "movie" | "tv") {
+  try {
+    const response = await fetch(`/api/tmdb?endpoint=details&type=${type}&id=${id}`)
+    if (!response.ok) {
+      const errorData = await response.json()
+      console.error("TMDB details error:", errorData)
+      throw new Error(`TMDB details failed: ${errorData.error || response.statusText}`)
+    }
+    return response.json()
+  } catch (error) {
+    console.error("Error in getDetails:", error)
+    return null
+  }
+}
+
+export async function getUpcomingEpisodes(showId: string) {
+  try {
+    const response = await fetch(`/api/tmdb?endpoint=upcoming&id=${showId}`)
+    if (!response.ok) {
+      const errorData = await response.json()
+      console.error("TMDB upcoming episodes error:", errorData)
+      throw new Error(`TMDB upcoming episodes failed: ${errorData.error || response.statusText}`)
+    }
+    return response.json()
+  } catch (error) {
+    console.error("Error in getUpcomingEpisodes:", error)
+    return { episodes: [] }
+  }
+}
+
+export async function getRecommendations(id: string, type: "movie" | "tv", page = 1) {
+  try {
+    const response = await fetch(`/api/tmdb?endpoint=recommendations&type=${type}&id=${id}&page=${page}`)
+    if (!response.ok) {
+      const errorData = await response.json()
+      console.error("TMDB recommendations error:", errorData)
+      throw new Error(`TMDB recommendations failed: ${errorData.error || response.statusText}`)
+    }
+    return response.json()
+  } catch (error) {
+    console.error("Error in getRecommendations:", error)
+    return { results: [] }
+  }
+}
+
+export async function getUpcoming(page = 1) {
+  try {
+    const response = await fetch(`/api/tmdb?endpoint=upcoming_movies&page=${page}`)
+    if (!response.ok) {
+      const errorData = await response.json()
+      console.error("TMDB upcoming movies error:", errorData)
+      throw new Error(`TMDB upcoming movies failed: ${errorData.error || response.statusText}`)
+    }
+    return response.json()
+  } catch (error) {
+    console.error("Error in getUpcoming:", error)
+    return { results: [] }
+  }
+}
+
+export async function getGenres(type: "movie" | "tv" = "movie") {
+  try {
+    const response = await fetch(`/api/tmdb?endpoint=genres&type=${type}`)
+    if (!response.ok) {
+      const errorData = await response.json()
+      console.error("TMDB genres error:", errorData)
+      throw new Error(`TMDB genres failed: ${errorData.error || response.statusText}`)
+    }
+    return response.json()
+  } catch (error) {
+    console.error("Error in getGenres:", error)
+    return { genres: [] }
+  }
+}
+
+export async function discoverByGenre(type: "movie" | "tv" = "movie", genreId: string, page = 1) {
+  try {
+    const response = await fetch(`/api/tmdb?endpoint=discover&type=${type}&genre=${genreId}&page=${page}`)
+    if (!response.ok) {
+      const errorData = await response.json()
+      console.error("TMDB discover error:", errorData)
+      throw new Error(`TMDB discover failed: ${errorData.error || response.statusText}`)
+    }
+    return response.json()
+  } catch (error) {
+    console.error("Error in discoverByGenre:", error)
+    return { results: [] }
+  }
+}
+
+// New function to discover content by actor
+export async function discoverByActor(type: "movie" | "tv" = "movie", actorId: string, page = 1) {
+  try {
+    const response = await fetch(`/api/tmdb?endpoint=discover&type=${type}&with_cast=${actorId}&page=${page}`)
+    if (!response.ok) {
+      const errorData = await response.json()
+      console.error("TMDB discover by actor error:", errorData)
+      throw new Error(`TMDB discover by actor failed: ${errorData.error || response.statusText}`)
+    }
+    return response.json()
+  } catch (error) {
+    console.error("Error in discoverByActor:", error)
+    return { results: [] }
+  }
+}

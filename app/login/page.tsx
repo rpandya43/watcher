@@ -1,6 +1,7 @@
 "use client"
 
 import type React from "react"
+
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
@@ -19,73 +20,23 @@ export default function Login() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
-    setLoading(true)
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
+      setLoading(true)
+
+      const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
 
-      if (error) {
-        console.error("Login error:", error)
-        toast({
-          title: "Error",
-          description: error.message,
-          variant: "destructive",
-        })
-        return
-      }
+      if (error) throw error
 
-      if (data.user) {
-        console.log("Login successful, user:", data.user.id)
-
-        // Ensure profile exists
-        try {
-          const { data: profile, error: profileError } = await supabase
-            .from("profiles")
-            .select("*")
-            .eq("id", data.user.id)
-            .single()
-
-          if (profileError && profileError.code === "PGRST116") {
-            // Profile doesn't exist, create it
-            const { error: insertError } = await supabase.from("profiles").insert({
-              id: data.user.id,
-              onboarding_completed: false,
-              preferences: {},
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-            })
-
-            if (insertError) {
-              console.error("Error creating profile:", insertError)
-            } else {
-              console.log("Profile created successfully")
-            }
-          } else if (profile) {
-            console.log("Profile exists:", profile)
-          }
-        } catch (profileError) {
-          console.error("Profile check error:", profileError)
-        }
-
-        toast({
-          title: "Success",
-          description: "Logged in successfully!",
-        })
-
-        // Force a small delay to ensure auth state is updated
-        setTimeout(() => {
-          router.push("/dashboard")
-          router.refresh()
-        }, 100)
-      }
+      router.push("/dashboard")
     } catch (error: any) {
-      console.error("Unexpected login error:", error)
+      console.error("Error logging in:", error)
       toast({
         title: "Error",
-        description: "An unexpected error occurred. Please try again.",
+        description: error.message || "Failed to log in. Please check your credentials.",
         variant: "destructive",
       })
     } finally {
@@ -122,7 +73,6 @@ export default function Login() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                disabled={loading}
               />
             </div>
             <div className="space-y-2">
@@ -144,7 +94,6 @@ export default function Login() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                disabled={loading}
               />
             </div>
             <Button type="submit" className="w-full" disabled={loading}>
@@ -157,6 +106,12 @@ export default function Login() {
             Don't have an account?{" "}
             <Link href="/register" className="text-primary hover:underline">
               Sign up
+            </Link>
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Forgot your password?{" "}
+            <Link href="/reset-password" className="text-primary hover:underline">
+              Reset it here
             </Link>
           </p>
         </CardFooter>

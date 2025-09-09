@@ -1,25 +1,22 @@
 "use client"
 
 import type React from "react"
-import { useContext } from "react"
-import { OnboardingContext } from "./onboarding-provider"
+
+import { useOnboarding } from "./onboarding-provider"
 import { OnboardingWizard } from "./onboarding-wizard"
 
-interface OnboardingWrapperProps {
-  children: React.ReactNode
-}
+export function OnboardingWrapper({ children }: { children: React.ReactNode }) {
+  const { isOnboardingComplete, loading } = useOnboarding()
 
-export function OnboardingWrapper({ children }: OnboardingWrapperProps) {
-  const context = useContext(OnboardingContext)
-
-  // If no context, just render children (this prevents the error)
-  if (!context) {
-    return <>{children}</>
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+      </div>
+    )
   }
 
-  const { isOnboarding } = context
-
-  if (isOnboarding) {
+  if (!isOnboardingComplete) {
     return <OnboardingWizard />
   }
 
