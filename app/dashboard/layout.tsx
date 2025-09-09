@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
@@ -13,7 +12,6 @@ import Link from "next/link"
 import { OnboardingProvider } from "@/components/onboarding/onboarding-provider"
 import { OnboardingWrapper } from "@/components/onboarding/onboarding-wrapper"
 import { NotificationChecker } from "@/components/notification-checker"
-import { TodayShowChecker } from "@/components/today-show-checker"
 
 export default function DashboardLayout({
   children,
@@ -22,24 +20,14 @@ export default function DashboardLayout({
 }) {
   const [user, setUser] = useState<any>(null)
   const [loading, setLoading] = useState(true)
-  const [sidebarPinned, setSidebarPinned] = useState(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("sidebarPinned") === "true"
-    }
-    return false
-  })
-  const [isMobile, setIsMobile] = useState(false)
+  const [sidebarPinned, setSidebarPinned] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
-    const handleResize = () => {
-      setIsMobile(window.innerWidth < 768)
+    if (typeof window !== "undefined") {
+      setSidebarPinned(localStorage.getItem("sidebarPinned") === "true")
     }
-
-    handleResize()
-    window.addEventListener("resize", handleResize)
-    return () => window.removeEventListener("resize", handleResize)
   }, [])
 
   useEffect(() => {
@@ -49,29 +37,27 @@ export default function DashboardLayout({
   }, [sidebarPinned])
 
   useEffect(() => {
+    let mounted = true
+
     const checkUser = async () => {
       try {
         const {
           data: { session },
-          error,
         } = await supabase.auth.getSession()
 
-        if (error) {
-          console.error("Session error:", error)
-          router.push("/login")
-          return
-        }
+        if (!mounted) return
 
         if (session?.user) {
           setUser(session.user)
 
-          const { data: adminData, error: adminError } = await supabase
+          // Check admin status
+          const { data: adminData } = await supabase
             .from("admin_users")
             .select("*")
             .eq("email", session.user.email)
             .single()
 
-          if (!adminError && adminData) {
+          if (mounted && adminData) {
             setIsAdmin(true)
           }
         } else {
@@ -80,9 +66,13 @@ export default function DashboardLayout({
         }
       } catch (error) {
         console.error("Error checking user:", error)
-        router.push("/login")
+        if (mounted) {
+          router.push("/login")
+        }
       } finally {
-        setLoading(false)
+        if (mounted) {
+          setLoading(false)
+        }
       }
     }
 
@@ -91,7 +81,7 @@ export default function DashboardLayout({
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log("Auth state changed:", event, session?.user?.email)
+      if (!mounted) return
 
       if (event === "SIGNED_OUT" || !session) {
         setUser(null)
@@ -99,35 +89,18 @@ export default function DashboardLayout({
         router.push("/")
       } else if (event === "SIGNED_IN" && session?.user) {
         setUser(session.user)
-
-        const { data: adminData } = await supabase
-          .from("admin_users")
-          .select("*")
-          .eq("email", session.user.email)
-          .single()
-
-        setIsAdmin(!!adminData)
-      } else if (event === "TOKEN_REFRESHED" && session?.user) {
-        setUser(session.user)
       }
     })
 
     return () => {
+      mounted = false
       subscription.unsubscribe()
     }
   }, [router])
 
   const handleSignOut = async () => {
-    try {
-      const { error } = await supabase.auth.signOut()
-      if (error) {
-        console.error("Error signing out:", error)
-      }
-      router.push("/")
-    } catch (error) {
-      console.error("Error during sign out:", error)
-      router.push("/")
-    }
+    await supabase.auth.signOut()
+    router.push("/")
   }
 
   const toggleSidebarPin = () => {
@@ -143,14 +116,7 @@ export default function DashboardLayout({
   }
 
   if (!user) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="text-center">
-          <p className="mb-4">Redirecting to login...</p>
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto"></div>
-        </div>
-      </div>
-    )
+    return null
   }
 
   return (
@@ -178,7 +144,6 @@ export default function DashboardLayout({
             </div>
           </div>
           <NotificationChecker />
-          <TodayShowChecker />
         </div>
       </OnboardingWrapper>
     </OnboardingProvider>

@@ -1,8 +1,8 @@
 "use client"
 
 import type React from "react"
-import { useContext } from "react"
-import { OnboardingContext } from "./onboarding-provider"
+
+import { useOnboarding } from "./onboarding-provider"
 import { OnboardingWizard } from "./onboarding-wizard"
 
 interface OnboardingWrapperProps {
@@ -10,16 +10,7 @@ interface OnboardingWrapperProps {
 }
 
 export function OnboardingWrapper({ children }: OnboardingWrapperProps) {
-  const context = useContext(OnboardingContext)
-
-  // If no context, just render children (this prevents the error)
-  if (!context) {
-    return <>{children}</>
-  }
-
-  const { isOnboarding } = context
-
-  console.log("OnboardingWrapper - isOnboarding:", isOnboarding)
+  const { isOnboarding } = useOnboarding()
 
   if (isOnboarding) {
     return <OnboardingWizard />

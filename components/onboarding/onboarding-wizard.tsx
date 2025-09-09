@@ -1,14 +1,16 @@
 "use client"
 
+import { CardFooter } from "@/components/ui/card"
+
 import { useState } from "react"
 import { useOnboarding } from "./onboarding-provider"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { useTheme } from "next-themes"
-import { Moon, Sun, Monitor, Check, Star, Bell, Zap } from "lucide-react"
+import { Moon, Sun, Monitor, Check, Bell, Zap } from "lucide-react"
 
 export function OnboardingWizard() {
   const { currentStep, nextStep, prevStep, skipOnboarding, completeOnboarding, setUserPreference, userPreferences } =
@@ -36,28 +38,22 @@ export function OnboardingWizard() {
     switch (currentStep) {
       case "welcome":
         return (
-          <Card className="w-full max-w-md mx-auto">
-            <CardHeader className="text-center">
-              <CardTitle className="text-2xl">Welcome to Watch Tracker!</CardTitle>
-              <CardDescription>
-                Let's get you set up with a personalized experience. This will only take a minute.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="text-center">
-              <div className="mb-6">
-                <Star className="w-16 h-16 mx-auto text-yellow-500" />
-              </div>
-              <p className="text-sm text-muted-foreground">
-                Track your favorite movies and TV shows, get notifications for new episodes, and discover new content.
-              </p>
-            </CardContent>
-            <CardFooter className="flex justify-between">
-              <Button variant="outline" onClick={skipOnboarding}>
-                Skip Setup
-              </Button>
-              <Button onClick={nextStep}>Get Started</Button>
-            </CardFooter>
-          </Card>
+          <div className="min-h-screen flex items-center justify-center bg-background p-4">
+            <Card className="w-full max-w-md">
+              <CardHeader className="text-center">
+                <CardTitle>Welcome to Watch Tracker!</CardTitle>
+                <CardDescription>Let's get you set up to track your favorite movies and TV shows.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Button onClick={nextStep} className="w-full">
+                  Get Started
+                </Button>
+                <Button onClick={skipOnboarding} variant="outline" className="w-full bg-transparent">
+                  Skip Setup
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
         )
 
       case "theme":
@@ -252,7 +248,21 @@ export function OnboardingWizard() {
         )
 
       default:
-        return null
+        return (
+          <div className="min-h-screen flex items-center justify-center bg-background p-4">
+            <Card className="w-full max-w-md">
+              <CardHeader className="text-center">
+                <CardTitle>Setup Complete!</CardTitle>
+                <CardDescription>You're all set to start tracking your movies and TV shows.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button onClick={completeOnboarding} className="w-full">
+                  Continue to Dashboard
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        )
     }
   }
 
@@ -260,7 +270,7 @@ export function OnboardingWizard() {
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {renderStep()}
-        <div className="mt-4 flex justify-center space-x-2">
+        {/* <div className="mt-4 flex justify-center space-x-2">
           {["welcome", "theme", "name", "notifications", "features", "complete"].map((step, index) => (
             <div
               key={step}
@@ -271,7 +281,7 @@ export function OnboardingWizard() {
               }`}
             />
           ))}
-        </div>
+        </div> */}
       </div>
     </div>
   )
