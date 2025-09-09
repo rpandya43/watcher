@@ -2,199 +2,211 @@
 
 import { useState } from "react"
 import { useOnboarding } from "./onboarding-provider"
-import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
-import { useTheme } from "next-themes"
-import { Moon, Sun, Monitor } from "lucide-react"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Progress } from "@/components/ui/progress"
+import { CheckCircle, Moon, Sun, Bell, BellOff, Film, Tv, Star } from "lucide-react"
 
 export function OnboardingWizard() {
   const { currentStep, nextStep, prevStep, skipOnboarding, completeOnboarding, setUserPreference, userPreferences } =
     useOnboarding()
-  const { setTheme } = useTheme()
+
   const [name, setName] = useState(userPreferences.name || "")
+  const [theme, setTheme] = useState(userPreferences.theme || "system")
+  const [emailNotifications, setEmailNotifications] = useState(userPreferences.emailNotifications ?? true)
+  const [browserNotifications, setBrowserNotifications] = useState(userPreferences.browserNotifications ?? false)
 
-  const handleThemeSelect = (theme: string) => {
-    setUserPreference("theme", theme)
-    setTheme(theme)
-  }
+  const steps = ["welcome", "theme", "name", "notifications", "features", "complete"]
+  const currentStepIndex = steps.indexOf(currentStep)
+  const progress = ((currentStepIndex + 1) / steps.length) * 100
 
-  const handleNameSubmit = () => {
-    setUserPreference("name", name)
+  const handleNext = () => {
+    // Save current step data
+    switch (currentStep) {
+      case "theme":
+        setUserPreference("theme", theme)
+        break
+      case "name":
+        setUserPreference("name", name)
+        break
+      case "notifications":
+        setUserPreference("emailNotifications", emailNotifications)
+        setUserPreference("browserNotifications", browserNotifications)
+        break
+    }
     nextStep()
   }
 
-  const handleNotificationSettings = (emailNotifications: boolean, browserNotifications: boolean) => {
-    setUserPreference("emailNotifications", emailNotifications)
-    setUserPreference("browserNotifications", browserNotifications)
-    nextStep()
+  const handleSkip = () => {
+    skipOnboarding()
   }
 
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md">
-        {currentStep === "welcome" && (
-          <>
+  const renderStep = () => {
+    switch (currentStep) {
+      case "welcome":
+        return (
+          <Card className="w-full max-w-md mx-auto">
             <CardHeader className="text-center">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+                <Film className="h-8 w-8 text-primary" />
+              </div>
               <CardTitle className="text-2xl">Welcome to TMDB Tracker!</CardTitle>
               <CardDescription>
-                Let's get you set up with a personalized experience in just a few steps.
+                Let's set up your account to get the best movie and TV show tracking experience.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <Button onClick={nextStep} className="w-full">
+              <Button onClick={handleNext} className="w-full">
                 Get Started
               </Button>
-              <Button onClick={skipOnboarding} variant="outline" className="w-full bg-transparent">
+              <Button onClick={handleSkip} variant="ghost" className="w-full">
                 Skip Setup
               </Button>
             </CardContent>
-          </>
-        )}
+          </Card>
+        )
 
-        {currentStep === "theme" && (
-          <>
+      case "theme":
+        return (
+          <Card className="w-full max-w-md mx-auto">
             <CardHeader className="text-center">
               <CardTitle>Choose Your Theme</CardTitle>
-              <CardDescription>Select your preferred appearance</CardDescription>
+              <CardDescription>Select how you'd like the app to look</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-3 gap-3">
-                <Button
-                  variant={userPreferences.theme === "light" ? "default" : "outline"}
-                  onClick={() => handleThemeSelect("light")}
-                  className="flex flex-col gap-2 h-auto p-4"
-                >
-                  <Sun className="h-6 w-6" />
-                  Light
-                </Button>
-                <Button
-                  variant={userPreferences.theme === "dark" ? "default" : "outline"}
-                  onClick={() => handleThemeSelect("dark")}
-                  className="flex flex-col gap-2 h-auto p-4"
-                >
-                  <Moon className="h-6 w-6" />
-                  Dark
-                </Button>
-                <Button
-                  variant={userPreferences.theme === "system" ? "default" : "outline"}
-                  onClick={() => handleThemeSelect("system")}
-                  className="flex flex-col gap-2 h-auto p-4"
-                >
-                  <Monitor className="h-6 w-6" />
-                  System
-                </Button>
-              </div>
+              <RadioGroup value={theme} onValueChange={setTheme} className="space-y-3">
+                <div className="flex items-center space-x-3 rounded-lg border p-3">
+                  <RadioGroupItem value="light" id="light" />
+                  <Sun className="h-5 w-5" />
+                  <Label htmlFor="light" className="flex-1">
+                    Light Mode
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-3 rounded-lg border p-3">
+                  <RadioGroupItem value="dark" id="dark" />
+                  <Moon className="h-5 w-5" />
+                  <Label htmlFor="dark" className="flex-1">
+                    Dark Mode
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-3 rounded-lg border p-3">
+                  <RadioGroupItem value="system" id="system" />
+                  <div className="flex h-5 w-5 items-center justify-center">
+                    <div className="h-3 w-3 rounded-full bg-gradient-to-r from-yellow-400 to-blue-600" />
+                  </div>
+                  <Label htmlFor="system" className="flex-1">
+                    System Default
+                  </Label>
+                </div>
+              </RadioGroup>
               <div className="flex gap-2">
                 <Button onClick={prevStep} variant="outline" className="flex-1 bg-transparent">
                   Back
                 </Button>
-                <Button onClick={nextStep} className="flex-1">
+                <Button onClick={handleNext} className="flex-1">
                   Continue
                 </Button>
               </div>
             </CardContent>
-          </>
-        )}
+          </Card>
+        )
 
-        {currentStep === "name" && (
-          <>
+      case "name":
+        return (
+          <Card className="w-full max-w-md mx-auto">
             <CardHeader className="text-center">
-              <CardTitle>What's your name?</CardTitle>
-              <CardDescription>This will help us personalize your experience</CardDescription>
+              <CardTitle>What should we call you?</CardTitle>
+              <CardDescription>This will personalize your experience</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="name">Your Name</Label>
-                <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Enter your name" />
+                <Input id="name" placeholder="Enter your name" value={name} onChange={(e) => setName(e.target.value)} />
               </div>
               <div className="flex gap-2">
                 <Button onClick={prevStep} variant="outline" className="flex-1 bg-transparent">
                   Back
                 </Button>
-                <Button onClick={handleNameSubmit} className="flex-1" disabled={!name.trim()}>
+                <Button onClick={handleNext} className="flex-1" disabled={!name.trim()}>
                   Continue
                 </Button>
               </div>
             </CardContent>
-          </>
-        )}
+          </Card>
+        )
 
-        {currentStep === "notifications" && (
-          <>
+      case "notifications":
+        return (
+          <Card className="w-full max-w-md mx-auto">
             <CardHeader className="text-center">
               <CardTitle>Notification Preferences</CardTitle>
-              <CardDescription>Choose how you'd like to be notified about new episodes</CardDescription>
+              <CardDescription>Stay updated on your favorite shows and movies</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
+            <CardContent className="space-y-6">
+              <div className="flex items-center justify-between space-x-3">
+                <div className="flex items-center space-x-3">
+                  <Bell className="h-5 w-5" />
+                  <div>
                     <Label>Email Notifications</Label>
-                    <p className="text-sm text-muted-foreground">Get notified via email about new episodes</p>
+                    <p className="text-sm text-muted-foreground">Get notified about new episodes</p>
                   </div>
-                  <Switch
-                    checked={userPreferences.emailNotifications !== false}
-                    onCheckedChange={(checked) => setUserPreference("emailNotifications", checked)}
-                  />
                 </div>
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
+                <Switch checked={emailNotifications} onCheckedChange={setEmailNotifications} />
+              </div>
+              <div className="flex items-center justify-between space-x-3">
+                <div className="flex items-center space-x-3">
+                  <BellOff className="h-5 w-5" />
+                  <div>
                     <Label>Browser Notifications</Label>
-                    <p className="text-sm text-muted-foreground">Get push notifications in your browser</p>
+                    <p className="text-sm text-muted-foreground">Real-time notifications in your browser</p>
                   </div>
-                  <Switch
-                    checked={userPreferences.browserNotifications === true}
-                    onCheckedChange={(checked) => setUserPreference("browserNotifications", checked)}
-                  />
                 </div>
+                <Switch checked={browserNotifications} onCheckedChange={setBrowserNotifications} />
               </div>
               <div className="flex gap-2">
                 <Button onClick={prevStep} variant="outline" className="flex-1 bg-transparent">
                   Back
                 </Button>
-                <Button
-                  onClick={() =>
-                    handleNotificationSettings(
-                      userPreferences.emailNotifications !== false,
-                      userPreferences.browserNotifications === true,
-                    )
-                  }
-                  className="flex-1"
-                >
+                <Button onClick={handleNext} className="flex-1">
                   Continue
                 </Button>
               </div>
             </CardContent>
-          </>
-        )}
+          </Card>
+        )
 
-        {currentStep === "features" && (
-          <>
+      case "features":
+        return (
+          <Card className="w-full max-w-md mx-auto">
             <CardHeader className="text-center">
-              <CardTitle>You're All Set!</CardTitle>
-              <CardDescription>Here's what you can do with TMDB Tracker:</CardDescription>
+              <CardTitle>Explore Features</CardTitle>
+              <CardDescription>Here's what you can do with TMDB Tracker</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-3 text-sm">
-                <div className="flex items-start gap-3">
-                  <div className="w-2 h-2 bg-primary rounded-full mt-2 flex-shrink-0" />
+              <div className="space-y-3">
+                <div className="flex items-center space-x-3 rounded-lg border p-3">
+                  <Film className="h-5 w-5 text-primary" />
                   <div>
-                    <strong>Track Movies & TV Shows:</strong> Keep track of what you've watched and discover new content
+                    <p className="font-medium">Track Movies & TV Shows</p>
+                    <p className="text-sm text-muted-foreground">Keep track of what you've watched</p>
                   </div>
                 </div>
-                <div className="flex items-start gap-3">
-                  <div className="w-2 h-2 bg-primary rounded-full mt-2 flex-shrink-0" />
+                <div className="flex items-center space-x-3 rounded-lg border p-3">
+                  <Star className="h-5 w-5 text-primary" />
                   <div>
-                    <strong>Get Recommendations:</strong> Discover new content based on your viewing history
+                    <p className="font-medium">Create Watchlists</p>
+                    <p className="text-sm text-muted-foreground">Save content to watch later</p>
                   </div>
                 </div>
-                <div className="flex items-start gap-3">
-                  <div className="w-2 h-2 bg-primary rounded-full mt-2 flex-shrink-0" />
+                <div className="flex items-center space-x-3 rounded-lg border p-3">
+                  <Tv className="h-5 w-5 text-primary" />
                   <div>
-                    <strong>Episode Reminders:</strong> Never miss a new episode of your favorite shows
+                    <p className="font-medium">Get Recommendations</p>
+                    <p className="text-sm text-muted-foreground">Discover new content based on your taste</p>
                   </div>
                 </div>
               </div>
@@ -202,28 +214,48 @@ export function OnboardingWizard() {
                 <Button onClick={prevStep} variant="outline" className="flex-1 bg-transparent">
                   Back
                 </Button>
-                <Button onClick={nextStep} className="flex-1">
-                  Complete Setup
+                <Button onClick={handleNext} className="flex-1">
+                  Finish Setup
                 </Button>
               </div>
             </CardContent>
-          </>
-        )}
+          </Card>
+        )
 
-        {currentStep === "complete" && (
-          <>
+      case "complete":
+        return (
+          <Card className="w-full max-w-md mx-auto">
             <CardHeader className="text-center">
-              <CardTitle>Welcome, {userPreferences.name || "there"}!</CardTitle>
-              <CardDescription>Your account is now set up and ready to use.</CardDescription>
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
+                <CheckCircle className="h-8 w-8 text-green-600" />
+              </div>
+              <CardTitle className="text-2xl">You're All Set!</CardTitle>
+              <CardDescription>Welcome to TMDB Tracker, {name}! Start exploring movies and TV shows.</CardDescription>
             </CardHeader>
             <CardContent>
               <Button onClick={completeOnboarding} className="w-full">
                 Start Using TMDB Tracker
               </Button>
             </CardContent>
-          </>
-        )}
-      </Card>
+          </Card>
+        )
+
+      default:
+        return null
+    }
+  }
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <div className="w-full max-w-md">
+        <div className="mb-8">
+          <Progress value={progress} className="h-2" />
+          <p className="text-center text-sm text-muted-foreground mt-2">
+            Step {currentStepIndex + 1} of {steps.length}
+          </p>
+        </div>
+        {renderStep()}
+      </div>
     </div>
   )
 }
